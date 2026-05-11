@@ -1,0 +1,66 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout />
+
+<script>
+    import { GeminiAudioClient, AudioStreamPlayer } from "../lib/gemini-core";
+
+    // 1. Inicializas las primitivas
+    const player = new AudioStreamPlayer();
+    const client = new GeminiAudioClient({
+        apiKey: import.meta.env.PUBLIC_GEMINI_API_KEY,
+        voiceName: "Aoede",
+    });
+
+    // 2. Suscribir escuchas a eventos silenciosos (Telemetry/Control)
+    client.on("sessionSaved", (handle) => {
+        // Aquí el desarrollador decide cómo guardarlo (localStorage, DB, IndexedDB, etc)
+        localStorage.setItem("gemini_handle", handle);
+    });
+
+    client.on("usage", (meta) => {
+        // Aquí el desarrollador decide qué hacer con la analítica
+        console.log(`Costo de tokens: ${meta.totalTokenCount}`);
+    });
+
+    client.on("error", (error) => {
+        console.error(error);
+    });
+
+    // 3. Función de acción del usuario
+    async function handleUserInteraction(userInput: string) {
+        try {
+            await player.resumeContext();
+
+            if (!client.isConnected()) {
+                const savedSession = localStorage.getItem("gemini_handle");
+                console.log("Intentando conectar...");
+
+                // Si la API key está vacía, esto lanzará un error ahora
+                await client.connect({
+                    resumeHandle: savedSession || undefined,
+                });
+                console.log("¡Conexión exitosa!");
+            }
+
+            const stream = client.sendMessageStream(userInput);
+
+            for await (const chunk of stream) {
+                if (chunk.type === "text") {
+                    console.log(chunk.text);
+                } else if (chunk.type === "audio") {
+                    player.playBase64PCM(chunk.base64Data);
+                }
+            }
+        } catch (error) {
+            // AQUÍ te enterarás de si la API Key es inválida, si no hay internet, etc.
+            console.error("❌ Fallo en la interacción:", error.message);
+        }
+    }
+
+    document.addEventListener("click", () => handleUserInteraction("HOla!"), {
+        once: true,
+    });
+</script>
