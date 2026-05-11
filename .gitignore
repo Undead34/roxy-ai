@@ -28,3 +28,4 @@ dist-ssr
 .roxy
 .astro
 dist
+.env
